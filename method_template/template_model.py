@@ -17,7 +17,7 @@ class TemplateModelConfig(NerfactoModelConfig):
     Add your custom model config parameters here.
     """
 
-    _target: Type = field(default_factory=lambda: TemplateModel)
+    _target: Type = field(default_factory=lambda: ActiveNeRFModel)
 
 
 class TemplateModel(NerfactoModel):
