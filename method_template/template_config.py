@@ -25,7 +25,7 @@ from nerfstudio.plugins.types import MethodSpecification
 
 method_template = MethodSpecification(
     config=TrainerConfig(
-        method_name="method-template",  # TODO: rename to your own model
+        method_name="activenerf",  # TODO: rename to your own model
         steps_per_eval_batch=500,
         steps_per_save=2000,
         max_num_iterations=30000,
