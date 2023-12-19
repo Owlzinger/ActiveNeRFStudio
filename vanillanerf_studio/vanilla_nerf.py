@@ -92,6 +92,7 @@ class NeRFModel(Model):
         super().populate_modules()
 
         # fields
+        # paper section 5.1
         position_encoding = NeRFEncoding(
             in_dim=3, num_frequencies=10, min_freq_exp=0.0, max_freq_exp=8.0, include_input=True
         )

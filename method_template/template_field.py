@@ -4,24 +4,40 @@ Template Nerfstudio Field
 Currently this subclasses the NerfactoField. Consider subclassing the base Field.
 """
 
-from typing import Literal, Optional
+from typing import Dict, Optional, Tuple, Type
 
-from torch import Tensor
+import torch
+from torch import Tensor, nn
 
+from nerfstudio.cameras.rays import RaySamples
+from nerfstudio.field_components.encodings import Encoding, Identity
+from nerfstudio.field_components.field_heads import (
+    DensityFieldHead,
+    FieldHead,
+    FieldHeadNames,
+    RGBFieldHead,
+)
+from nerfstudio.field_components.mlp import MLP
 from nerfstudio.field_components.spatial_distortions import SpatialDistortion
-from nerfstudio.fields.nerfacto_field import NerfactoField  # for subclassing NerfactoField
-from nerfstudio.fields.base_field import Field  # for custom Field
+from nerfstudio.fields.base_field import Field
 
 
-class TemplateNerfField(NerfactoField):
-    """Template Field
+class ActiveNeRFField(Field):
+    """ActiveNeRF Field
 
     Args:
-        aabb: parameters of scene aabb bounds
-        num_images: number of images in the dataset
+        position_encoding: Position encoder.
+        direction_encoding: Direction encoder.
+        base_mlp_num_layers: Number of layers for base MLP.
+        base_mlp_layer_width: Width of base MLP layers.
+        head_mlp_num_layers: Number of layer for output head MLP.
+        head_mlp_layer_width: Width of output head MLP layers.
+        skip_connections: Where to add skip connection in base MLP.
+        use_integrated_encoding: Used integrated samples as encoding input.
+        spatial_distortion: Spatial distortion.
     """
 
-    aabb: Tensor
+    # aabb: Tensor
 
     def __init__(
             self,
