@@ -1,23 +1,25 @@
 """
 Template Model File
 
-Currently this subclasses the Nerfacto model. Consider subclassing from the base Model.
+Currently, this subclasses the Nerfacto model. Consider subclassing from the base Model.
 """
 from dataclasses import dataclass, field
-from typing import Type
+from typing import Type, Literal, Dict, Any
 import torch
 from torch.nn import Parameter
 from torchmetrics.functional import structural_similarity_index_measure
 from torchmetrics.image import PeakSignalNoiseRatio
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
-
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.configs.config_utils import to_immutable_dict
 from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.temporal_distortions import TemporalDistortionKind
 from nerfstudio.fields.vanilla_nerf_field import NeRFField
-from nerfstudio.model_components.losses import MSELoss, scale_gradients_by_distance_squared
+from nerfstudio.model_components.losses import (
+    MSELoss,
+    scale_gradients_by_distance_squared,
+)
 from nerfstudio.model_components.ray_samplers import PDFSampler, UniformSampler
 from nerfstudio.model_components.renderers import (
     AccumulationRenderer,
@@ -34,6 +36,7 @@ class ActiveModelConfig(ModelConfig):
 
     Add your custom model config parameters here.
     """
+
     """ActiveNeRF Model Config"""
     # --config_lego.txt
     _target: Type = field(default_factory=lambda: ActiveNeRFModel)
@@ -46,7 +49,9 @@ class ActiveModelConfig(ModelConfig):
     # following setting by default
     enable_temporal_distortion: bool = False
     """Specifies whether or not to include ray warping based on time."""
-    temporal_distortion_params: Dict[str, Any] = to_immutable_dict({"kind": TemporalDistortionKind.DNERF})
+    temporal_distortion_params: Dict[str, Any] = to_immutable_dict(
+        {"kind": TemporalDistortionKind.DNERF}
+    )
     """Parameters to instantiate temporal distortion with"""
     use_gradient_scaling: bool = False
     """Use gradient scaler where the gradients are lower for points closer to the camera."""
@@ -56,14 +61,15 @@ class ActiveModelConfig(ModelConfig):
 
 class ActiveNeRFModel(Model):
     """Template Model."""
+
     # 这意味着 config 属性预期是一个 ActiveModelConfig
     # 类型的实例。
     config: ActiveModelConfig
 
     def __init__(
-            self,
-            config: ActiveModelConfig,
-            **kwargs,
+        self,
+        config: ActiveModelConfig,
+        **kwargs,
     ) -> None:
         self.field_coarse = None
         self.field_fine = None
@@ -82,10 +88,18 @@ class ActiveNeRFModel(Model):
         # set L = 10 for coordinates
         # L=4 for directions.
         position_encoding = NeRFEncoding(
-            in_dim=3, num_frequencies=10, min_freq_exp=0.0, max_freq_exp=8.0, include_input=True
+            in_dim=3,
+            num_frequencies=10,
+            min_freq_exp=0.0,
+            max_freq_exp=8.0,
+            include_input=True,
         )
         direction_encoding = NeRFEncoding(
-            in_dim=3, num_frequencies=4, min_freq_exp=0.0, max_freq_exp=4.0, include_input=True
+            in_dim=3,
+            num_frequencies=4,
+            min_freq_exp=0.0,
+            max_freq_exp=4.0,
+            include_input=True,
         )
         self.field_coarse = NeRFField(
             position_encoding=position_encoding,
@@ -97,7 +111,9 @@ class ActiveNeRFModel(Model):
             direction_encoding=direction_encoding,
         )
         # samplers
-        self.sampler_uniform = UniformSampler(num_samples=self.config.num_coarse_samples)
+        self.sampler_uniform = UniformSampler(
+            num_samples=self.config.num_coarse_samples
+        )
         self.sampler_pdf = PDFSampler(num_samples=self.config.num_importance_samples)
 
         # renderers
