@@ -13,7 +13,7 @@ class NeRF(nn.Module):
         input_ch_views=3,
         output_ch=4,
         skips=[4],
-        use_viewdirs=False,
+        use_viewdirs=True,
     ):
         """ """
         super(NeRF, self).__init__()
@@ -83,11 +83,11 @@ class activeNeRF(nn.Module):
         input_ch_views=3,
         output_ch=4,
         skips=[4],
-        use_viewdirs=False,
+        use_viewdirs=True,
         beta_min=0.0,
     ):
         """ """
-        super(NeRF, self).__init__()
+        super(activeNeRF, self).__init__()
         self.D = D
         self.W = W
         self.input_ch = input_ch
@@ -155,3 +155,36 @@ if __name__ == "__main__":
 
     print(model)
     print(model2)
+"""
+NeRF(
+  (pts_linears): ModuleList(
+    (0): Linear(in_features=3, out_features=256, bias=True)
+    (1-4): 4 x Linear(in_features=256, out_features=256, bias=True)
+    (5): Linear(in_features=259, out_features=256, bias=True)
+    (6-7): 2 x Linear(in_features=256, out_features=256, bias=True)
+  )
+  (views_linears): ModuleList(
+    (0): Linear(in_features=259, out_features=128, bias=True)
+  )
+  (feature_linear): Linear(in_features=256, out_features=256, bias=True)
+  (alpha_linear): Linear(in_features=256, out_features=1, bias=True)
+  (rgb_linear): Linear(in_features=128, out_features=3, bias=True)
+)
+activeNeRF(
+  (pts_linears): ModuleList(
+    (0): Linear(in_features=3, out_features=256, bias=True)
+    (1-4): 4 x Linear(in_features=256, out_features=256, bias=True)
+    (5): Linear(in_features=259, out_features=256, bias=True)
+    (6-7): 2 x Linear(in_features=256, out_features=256, bias=True)
+  )
+  (views_linears): ModuleList(
+    (0): Linear(in_features=259, out_features=128, bias=True)
+  )
+  (feature_linear): Linear(in_features=256, out_features=256, bias=True)
+  (alpha_linear): Linear(in_features=256, out_features=1, bias=True)
+  (uncertainty_linear): Linear(in_features=256, out_features=1, bias=True)
+  (act_uncertainty): Softplus(beta=1, threshold=20)
+  (rgb_linear): Linear(in_features=128, out_features=3, bias=True)
+)
+
+"""

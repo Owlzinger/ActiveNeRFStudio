@@ -75,7 +75,6 @@ class NeRFField(Field):
             out_activation=nn.ReLU(),
         )
         self.field_output_density = DensityFieldHead(in_dim=self.mlp_base.get_out_dim())
-
         if field_heads:
             self.mlp_head = MLP(
                 in_dim=self.mlp_base.get_out_dim() + self.direction_encoding.get_out_dim(),

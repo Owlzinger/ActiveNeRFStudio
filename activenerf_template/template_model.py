@@ -121,7 +121,10 @@ class ActiveNeRFModel(Model):
         self.renderer_accumulation = AccumulationRenderer()
         self.renderer_depth = DepthRenderer()
         # losses
-        self.rgb_loss = MSELoss()
+        def activeLoss():
+            pass
+
+        self.rgb_loss = activeLoss()
 
         # metrics
         self.psnr = PeakSignalNoiseRatio(data_range=1.0)
