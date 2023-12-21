@@ -15,7 +15,11 @@ from nerfstudio.configs.config_utils import to_immutable_dict
 from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.temporal_distortions import TemporalDistortionKind
-from nerfstudio.fields.vanilla_nerf_field import NeRFField
+
+# TODO: 向nerfstudio注册后，解除注释
+# from nerfstudio.fields.template_field import ActiveNeRFField
+from template_field import ActiveNeRFField
+
 from nerfstudio.model_components.losses import (
     MSELoss,
     scale_gradients_by_distance_squared,
@@ -67,9 +71,9 @@ class ActiveNeRFModel(Model):
     config: ActiveModelConfig
 
     def __init__(
-        self,
-        config: ActiveModelConfig,
-        **kwargs,
+            self,
+            config: ActiveModelConfig,
+            **kwargs,
     ) -> None:
         self.field_coarse = None
         self.field_fine = None
@@ -101,12 +105,12 @@ class ActiveNeRFModel(Model):
             max_freq_exp=4.0,
             include_input=True,
         )
-        self.field_coarse = NeRFField(
+        self.field_coarse = ActiveNeRFField(
             position_encoding=position_encoding,
             direction_encoding=direction_encoding,
         )
 
-        self.field_fine = NeRFField(
+        self.field_fine = ActiveNeRFField(
             position_encoding=position_encoding,
             direction_encoding=direction_encoding,
         )
@@ -120,11 +124,18 @@ class ActiveNeRFModel(Model):
         self.renderer_rgb = RGBRenderer(background_color=self.config.background_color)
         self.renderer_accumulation = AccumulationRenderer()
         self.renderer_depth = DepthRenderer()
-        # losses
-        def activeLoss():
-            pass
 
-        self.rgb_loss = activeLoss()
+        # losses
+        img2mse_uncert_alpha = (
+            lambda x, y, uncert, alpha, w: torch.mean(
+                (1 / (2 * (uncert + 1e-9).unsqueeze(-1))) * ((x - y) ** 2)
+            )
+                                           + 0.5 * torch.mean(torch.log(uncert + 1e-9))
+                                           + w * alpha.mean()
+                                           + 4.0
+        )
+
+        self.rgb_loss = img2mse_uncert_alpha()
 
         # metrics
         self.psnr = PeakSignalNoiseRatio(data_range=1.0)
@@ -137,3 +148,7 @@ class ActiveNeRFModel(Model):
 
     # TODO: Override any potential functions/methods to implement your own method
     # or subclass from "Model" and define all mandatory fields.
+
+
+def activeLoss():
+    pass
