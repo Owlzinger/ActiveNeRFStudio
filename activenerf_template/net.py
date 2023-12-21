@@ -2,6 +2,7 @@ import torch
 from torch import Tensor, nn, cat
 import numpy as np
 
+import torch.nn.functional as F
 
 class NeRF(nn.Module):
     def __init__(

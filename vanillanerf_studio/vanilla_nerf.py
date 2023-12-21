@@ -63,6 +63,7 @@ class VanillaModelConfig(ModelConfig):
     background_color: Literal["random", "last_sample", "black", "white"] = "white"
     """Whether to randomize the background color."""
 
+img2mse_uncert_alpha = lambda x, y, uncert, alpha, w : torch.mean((1 / (2*(uncert+1e-9).unsqueeze(-1))) *((x - y) ** 2)) + 0.5*torch.mean(torch.log(uncert+1e-9)) + w * alpha.mean() + 4.0
 
 class NeRFModel(Model):
     """Vanilla NeRF model
