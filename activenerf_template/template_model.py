@@ -3,27 +3,26 @@ Template Model File
 
 Currently, this subclasses the Nerfacto model. Consider subclassing from the base Model.
 """
+
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Type, Literal, Dict, Any
+from typing import Any, Dict, List, Tuple, Type, Literal
+
 import torch
 from torch.nn import Parameter
 from torchmetrics.functional import structural_similarity_index_measure
 from torchmetrics.image import PeakSignalNoiseRatio
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
+
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.configs.config_utils import to_immutable_dict
 from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.temporal_distortions import TemporalDistortionKind
-
-# TODO: 向nerfstudio注册后，解除注释
-# from nerfstudio.fields.template_field import ActiveNeRFField
+# from nerfstudio.fields.vanilla_nerf_field import NeRFField
 from template_field import ActiveNeRFField
-
-from nerfstudio.model_components.losses import (
-    MSELoss,
-    scale_gradients_by_distance_squared,
-)
+from nerfstudio.model_components.losses import MSELoss, scale_gradients_by_distance_squared
 from nerfstudio.model_components.ray_samplers import PDFSampler, UniformSampler
 from nerfstudio.model_components.renderers import (
     AccumulationRenderer,
@@ -41,21 +40,17 @@ class ActiveModelConfig(ModelConfig):
     Add your custom model config parameters here.
     """
 
-    """ActiveNeRF Model Config"""
-    # --config_lego.txt
     _target: Type = field(default_factory=lambda: ActiveNeRFModel)
+    num_coarse_samples: int = 64
     # follow the settings in NeRF, and sample 64, 128 points
     # for coarse and fine models respectively.
     """Number of samples in coarse field evaluation"""
-    num_coarse_samples: int = 64
-    """Number of samples in fine field evaluation"""
     num_importance_samples: int = 128
-    # following setting by default
+    """Number of samples in fine field evaluation"""
+
     enable_temporal_distortion: bool = False
     """Specifies whether or not to include ray warping based on time."""
-    temporal_distortion_params: Dict[str, Any] = to_immutable_dict(
-        {"kind": TemporalDistortionKind.DNERF}
-    )
+    temporal_distortion_params: Dict[str, Any] = to_immutable_dict({"kind": TemporalDistortionKind.DNERF})
     """Parameters to instantiate temporal distortion with"""
     use_gradient_scaling: bool = False
     """Use gradient scaler where the gradients are lower for points closer to the camera."""
@@ -64,10 +59,13 @@ class ActiveModelConfig(ModelConfig):
 
 
 class ActiveNeRFModel(Model):
-    """Template Model."""
+    """Vanilla NeRF model
 
-    # 这意味着 config 属性预期是一个 ActiveModelConfig
-    # 类型的实例。
+    Args:
+        config: Basic NeRF configuration to instantiate model
+ 这意味着 config 属性预期是一个 ActiveModelConfig 类型的实例。
+    """
+
     config: ActiveModelConfig
 
     def __init__(
@@ -85,6 +83,7 @@ class ActiveNeRFModel(Model):
         )
 
     def populate_modules(self):
+        """Set the fields and modules"""
         super().populate_modules()
 
         # fields
@@ -92,18 +91,10 @@ class ActiveNeRFModel(Model):
         # set L = 10 for coordinates
         # L=4 for directions.
         position_encoding = NeRFEncoding(
-            in_dim=3,
-            num_frequencies=10,
-            min_freq_exp=0.0,
-            max_freq_exp=8.0,
-            include_input=True,
+            in_dim=3, num_frequencies=10, min_freq_exp=0.0, max_freq_exp=8.0, include_input=True
         )
         direction_encoding = NeRFEncoding(
-            in_dim=3,
-            num_frequencies=4,
-            min_freq_exp=0.0,
-            max_freq_exp=4.0,
-            include_input=True,
+            in_dim=3, num_frequencies=4, min_freq_exp=0.0, max_freq_exp=4.0, include_input=True
         )
         self.field_coarse = ActiveNeRFField(
             position_encoding=position_encoding,
@@ -114,10 +105,9 @@ class ActiveNeRFModel(Model):
             position_encoding=position_encoding,
             direction_encoding=direction_encoding,
         )
+
         # samplers
-        self.sampler_uniform = UniformSampler(
-            num_samples=self.config.num_coarse_samples
-        )
+        self.sampler_uniform = UniformSampler(num_samples=self.config.num_coarse_samples)
         self.sampler_pdf = PDFSampler(num_samples=self.config.num_importance_samples)
 
         # renderers
@@ -126,29 +116,149 @@ class ActiveNeRFModel(Model):
         self.renderer_depth = DepthRenderer()
 
         # losses
-        img2mse_uncert_alpha = (
-            lambda x, y, uncert, alpha, w: torch.mean(
-                (1 / (2 * (uncert + 1e-9).unsqueeze(-1))) * ((x - y) ** 2)
-            )
-                                           + 0.5 * torch.mean(torch.log(uncert + 1e-9))
-                                           + w * alpha.mean()
-                                           + 4.0
-        )
-
-        self.rgb_loss = img2mse_uncert_alpha()
+        self.rgb_loss = MSELoss()
 
         # metrics
         self.psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.ssim = structural_similarity_index_measure
         self.lpips = LearnedPerceptualImagePatchSimilarity(normalize=True)
+
         if getattr(self.config, "enable_temporal_distortion", False):
             params = self.config.temporal_distortion_params
             kind = params.pop("kind")
             self.temporal_distortion = kind.to_temporal_distortion(params)
 
-    # TODO: Override any potential functions/methods to implement your own method
-    # or subclass from "Model" and define all mandatory fields.
+    def get_param_groups(self) -> Dict[str, List[Parameter]]:
+        param_groups = {}
+        if self.field_coarse is None or self.field_fine is None:
+            raise ValueError("populate_fields() must be called before get_param_groups")
+        param_groups["fields"] = list(self.field_coarse.parameters()) + list(self.field_fine.parameters())
+        if self.temporal_distortion is not None:
+            param_groups["temporal_distortion"] = list(self.temporal_distortion.parameters())
+        return param_groups
 
+    def get_outputs(self, ray_bundle: RayBundle):
+        if self.field_coarse is None or self.field_fine is None:
+            raise ValueError("populate_fields() must be called before get_outputs")
 
-def activeLoss():
-    pass
+        # uniform sampling
+        ray_samples_uniform = self.sampler_uniform(ray_bundle)
+        if self.temporal_distortion is not None:
+            offsets = None
+            if ray_samples_uniform.times is not None:
+                offsets = self.temporal_distortion(
+                    ray_samples_uniform.frustums.get_positions(), ray_samples_uniform.times
+                )
+            ray_samples_uniform.frustums.set_offsets(offsets)
+
+        # coarse field:
+        field_outputs_coarse = self.field_coarse.forward(ray_samples_uniform)
+        if self.config.use_gradient_scaling:
+            field_outputs_coarse = scale_gradients_by_distance_squared(field_outputs_coarse, ray_samples_uniform)
+        weights_coarse = ray_samples_uniform.get_weights(field_outputs_coarse[FieldHeadNames.DENSITY])
+        rgb_coarse = self.renderer_rgb(
+            rgb=field_outputs_coarse[FieldHeadNames.RGB],
+            weights=weights_coarse,
+        )
+        accumulation_coarse = self.renderer_accumulation(weights_coarse)
+        depth_coarse = self.renderer_depth(weights_coarse, ray_samples_uniform)
+
+        # pdf sampling
+        ray_samples_pdf = self.sampler_pdf(ray_bundle, ray_samples_uniform, weights_coarse)
+        if self.temporal_distortion is not None:
+            offsets = None
+            if ray_samples_pdf.times is not None:
+                offsets = self.temporal_distortion(ray_samples_pdf.frustums.get_positions(), ray_samples_pdf.times)
+            ray_samples_pdf.frustums.set_offsets(offsets)
+
+        # fine field:
+        field_outputs_fine = self.field_fine.forward(ray_samples_pdf)
+        if self.config.use_gradient_scaling:
+            field_outputs_fine = scale_gradients_by_distance_squared(field_outputs_fine, ray_samples_pdf)
+        weights_fine = ray_samples_pdf.get_weights(field_outputs_fine[FieldHeadNames.DENSITY])
+        rgb_fine = self.renderer_rgb(
+            rgb=field_outputs_fine[FieldHeadNames.RGB],
+            weights=weights_fine,
+        )
+        accumulation_fine = self.renderer_accumulation(weights_fine)
+        depth_fine = self.renderer_depth(weights_fine, ray_samples_pdf)
+
+        outputs = {
+            "rgb_coarse": rgb_coarse,
+            "rgb_fine": rgb_fine,
+            "accumulation_coarse": accumulation_coarse,
+            "accumulation_fine": accumulation_fine,
+            "depth_coarse": depth_coarse,
+            "depth_fine": depth_fine,
+        }
+        return outputs
+
+    def get_loss_dict(self, outputs, batch, metrics_dict=None) -> Dict[str, torch.Tensor]:
+        # Scaling metrics by coefficients to create the losses.
+        device = outputs["rgb_coarse"].device
+        image = batch["image"].to(device)
+        coarse_pred, coarse_image = self.renderer_rgb.blend_background_for_loss_computation(
+            pred_image=outputs["rgb_coarse"],
+            pred_accumulation=outputs["accumulation_coarse"],
+            gt_image=image,
+        )
+        fine_pred, fine_image = self.renderer_rgb.blend_background_for_loss_computation(
+            pred_image=outputs["rgb_fine"],
+            pred_accumulation=outputs["accumulation_fine"],
+            gt_image=image,
+        )
+
+        rgb_loss_coarse = self.rgb_loss(coarse_image, coarse_pred)
+        rgb_loss_fine = self.rgb_loss(fine_image, fine_pred)
+
+        loss_dict = {"rgb_loss_coarse": rgb_loss_coarse, "rgb_loss_fine": rgb_loss_fine}
+        loss_dict = misc.scale_dict(loss_dict, self.config.loss_coefficients)
+        return loss_dict
+
+    def get_image_metrics_and_images(
+            self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
+    ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
+        image = batch["image"].to(outputs["rgb_coarse"].device)
+        image = self.renderer_rgb.blend_background(image)
+        rgb_coarse = outputs["rgb_coarse"]
+        rgb_fine = outputs["rgb_fine"]
+        acc_coarse = colormaps.apply_colormap(outputs["accumulation_coarse"])
+        acc_fine = colormaps.apply_colormap(outputs["accumulation_fine"])
+        assert self.config.collider_params is not None
+        depth_coarse = colormaps.apply_depth_colormap(
+            outputs["depth_coarse"],
+            accumulation=outputs["accumulation_coarse"],
+            near_plane=self.config.collider_params["near_plane"],
+            far_plane=self.config.collider_params["far_plane"],
+        )
+        depth_fine = colormaps.apply_depth_colormap(
+            outputs["depth_fine"],
+            accumulation=outputs["accumulation_fine"],
+            near_plane=self.config.collider_params["near_plane"],
+            far_plane=self.config.collider_params["far_plane"],
+        )
+
+        combined_rgb = torch.cat([image, rgb_coarse, rgb_fine], dim=1)
+        combined_acc = torch.cat([acc_coarse, acc_fine], dim=1)
+        combined_depth = torch.cat([depth_coarse, depth_fine], dim=1)
+
+        # Switch images from [H, W, C] to [1, C, H, W] for metrics computations
+        image = torch.moveaxis(image, -1, 0)[None, ...]
+        rgb_coarse = torch.moveaxis(rgb_coarse, -1, 0)[None, ...]
+        rgb_fine = torch.moveaxis(rgb_fine, -1, 0)[None, ...]
+
+        coarse_psnr = self.psnr(image, rgb_coarse)
+        fine_psnr = self.psnr(image, rgb_fine)
+        fine_ssim = self.ssim(image, rgb_fine)
+        fine_lpips = self.lpips(image, rgb_fine)
+        assert isinstance(fine_ssim, torch.Tensor)
+
+        metrics_dict = {
+            "psnr": float(fine_psnr.item()),
+            "coarse_psnr": float(coarse_psnr),
+            "fine_psnr": float(fine_psnr),
+            "fine_ssim": float(fine_ssim),
+            "fine_lpips": float(fine_lpips),
+        }
+        images_dict = {"img": combined_rgb, "accumulation": combined_acc, "depth": combined_depth}
+        return metrics_dict, images_dict
