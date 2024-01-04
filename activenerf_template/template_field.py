@@ -41,28 +41,28 @@ class ActiveNeRFField(Field):
     # or subclass from base Field and define all mandatory methods.
 
     def __init__(
-            self,
-            position_encoding: Encoding = Identity(in_dim=3),
-            direction_encoding: Encoding = Identity(in_dim=3),
-            base_mlp_num_layers: int = 8,
-            base_mlp_layer_width: int = 256,
-            head_mlp_num_layers: int = 2,
-            head_mlp_layer_width: int = 128,
-            skip_connections: Tuple[int] = (4,),
-            field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
-            use_integrated_encoding: bool = False,
-            spatial_distortion: Optional[SpatialDistortion] = None,
-            use_viewdirs: bool = True,
+        self,
+        position_encoding: Encoding = Identity(in_dim=3),
+        direction_encoding: Encoding = Identity(in_dim=3),
+        base_mlp_num_layers: int = 8,
+        base_mlp_layer_width: int = 256,
+        head_mlp_num_layers: int = 2,
+        head_mlp_layer_width: int = 128,
+        skip_connections: Tuple[int] = (4,),
+        field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
+        use_integrated_encoding: bool = False,
+        spatial_distortion: Optional[SpatialDistortion] = None,
+        use_viewdirs: bool = True,
+        beta_min: float = 0.0,
     ) -> None:
         super().__init__()
         self.position_encoding = position_encoding
         self.direction_encoding = direction_encoding
         self.use_integrated_encoding = use_integrated_encoding
         self.spatial_distortion = spatial_distortion
-        self.uncertainty_linear = nn.Linear(in_features=256, out_features=1, bias=True)
-        self.act_uncertainty = nn.Softplus(beta=1, threshold=20)
-        self.use_viewdirs = use_viewdirs
 
+        self.use_viewdirs = use_viewdirs
+        self.beta_min = beta_min
         self.mlp_base = MLP(
             # get_out_dim() 返回的是 out_dim/编码后的维度
             # 输入维度是 3 ：x,y,z
@@ -77,6 +77,8 @@ class ActiveNeRFField(Field):
             skip_connections=skip_connections,
             out_activation=nn.ReLU(),
         )
+        self.uncertainty_linear = nn.Linear(in_features=256, out_features=1, bias=True)
+        self.act_uncertainty = nn.Softplus(beta=1, threshold=20)
         self.field_output_density = DensityFieldHead(in_dim=self.mlp_base.get_out_dim())
         if field_heads:
             self.mlp_head = MLP(
@@ -109,14 +111,14 @@ class ActiveNeRFField(Field):
     #
     def get_uncertainty(self, x, y, uncert, alpha, w):
         return (
-                torch.mean((1 / (2 * (uncert + 1e-9).unsqueeze(-1))) * ((x - y) ** 2))
-                + 0.5 * torch.mean(torch.log(uncert + 1e-9))
-                + w * alpha.mean()
-                + 4.0
+            torch.mean((1 / (2 * (uncert + 1e-9).unsqueeze(-1))) * ((x - y) ** 2))
+            + 0.5 * torch.mean(torch.log(uncert + 1e-9))
+            + w * alpha.mean()
+            + 4.0
         )
 
     def get_outputs(
-            self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
+        self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
     ) -> Dict[FieldHeadNames, Tensor]:
         outputs = {}
         for field_head in self.field_heads:
