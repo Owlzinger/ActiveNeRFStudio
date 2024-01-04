@@ -20,6 +20,7 @@ from nerfstudio.configs.config_utils import to_immutable_dict
 from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.temporal_distortions import TemporalDistortionKind
+
 # from nerfstudio.fields.vanilla_nerf_field import NeRFField
 from template_field import ActiveNeRFField
 from nerfstudio.model_components.losses import MSELoss, scale_gradients_by_distance_squared
@@ -62,16 +63,15 @@ class ActiveNeRFModel(Model):
     """Vanilla NeRF model
 
     Args:
-        config: Basic NeRF configuration to instantiate model
- 这意味着 config 属性预期是一个 ActiveModelConfig 类型的实例。
+        config: 这意味着 config 属性预期是一个 ActiveModelConfig 类型的实例。
     """
 
     config: ActiveModelConfig
 
     def __init__(
-            self,
-            config: ActiveModelConfig,
-            **kwargs,
+        self,
+        config: ActiveModelConfig,
+        **kwargs,
     ) -> None:
         self.field_coarse = None
         self.field_fine = None
@@ -216,7 +216,7 @@ class ActiveNeRFModel(Model):
         return loss_dict
 
     def get_image_metrics_and_images(
-            self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
+        self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
         image = batch["image"].to(outputs["rgb_coarse"].device)
         image = self.renderer_rgb.blend_background(image)

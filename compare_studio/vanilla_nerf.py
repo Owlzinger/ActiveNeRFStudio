@@ -266,3 +266,8 @@ class NeRFModel(Model):
         }
         images_dict = {"img": combined_rgb, "accumulation": combined_acc, "depth": combined_depth}
         return metrics_dict, images_dict
+
+
+if __name__ == "__main__":
+    model = NeRFModel(config=VanillaModelConfig())
+    print(model)
