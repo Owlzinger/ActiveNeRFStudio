@@ -21,10 +21,6 @@ from nerfstudio.field_components.mlp import MLP
 from nerfstudio.field_components.spatial_distortions import SpatialDistortion
 from nerfstudio.fields.base_field import Field
 
-img2mse_uncert_alpha = lambda x, y, uncert, alpha, w: torch.mean(
-    (1 / (2 * (uncert + 1e-9).unsqueeze(-1))) * ((x - y) ** 2)) + 0.5 * torch.mean(
-    torch.log(uncert + 1e-9)) + w * alpha.mean() + 4.0
-
 
 class ActiveNeRFField(Field):
     """NeRF Field
@@ -56,12 +52,16 @@ class ActiveNeRFField(Field):
             field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
             use_integrated_encoding: bool = False,
             spatial_distortion: Optional[SpatialDistortion] = None,
+            use_viewdirs: bool = True,
     ) -> None:
         super().__init__()
         self.position_encoding = position_encoding
         self.direction_encoding = direction_encoding
         self.use_integrated_encoding = use_integrated_encoding
         self.spatial_distortion = spatial_distortion
+        self.uncertainty_linear = nn.Linear(in_features=256, out_features=1, bias=True)
+        self.act_uncertainty = nn.Softplus(beta=1, threshold=20)
+        self.use_viewdirs = use_viewdirs
 
         self.mlp_base = MLP(
             # get_out_dim() 返回的是 out_dim/编码后的维度
@@ -86,7 +86,8 @@ class ActiveNeRFField(Field):
                 out_activation=nn.ReLU(),
             )
         self.field_heads = nn.ModuleList(
-            [field_head() for field_head in field_heads] if field_heads else [])  # type: ignore
+            [field_head() for field_head in field_heads] if field_heads else []
+        )  # type: ignore
         for field_head in self.field_heads:
             field_head.set_in_dim(self.mlp_head.get_out_dim())  # type: ignore
 
@@ -105,6 +106,15 @@ class ActiveNeRFField(Field):
         density = self.field_output_density(base_mlp_out)
         return density, base_mlp_out
 
+    #
+    def get_uncertainty(self, x, y, uncert, alpha, w):
+        return (
+                torch.mean((1 / (2 * (uncert + 1e-9).unsqueeze(-1))) * ((x - y) ** 2))
+                + 0.5 * torch.mean(torch.log(uncert + 1e-9))
+                + w * alpha.mean()
+                + 4.0
+        )
+
     def get_outputs(
             self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
     ) -> Dict[FieldHeadNames, Tensor]:
@@ -113,4 +123,48 @@ class ActiveNeRFField(Field):
             encoded_dir = self.direction_encoding(ray_samples.frustums.directions)
             mlp_out = self.mlp_head(torch.cat([encoded_dir, density_embedding], dim=-1))  # type: ignore
             outputs[field_head.field_head_name] = field_head(mlp_out)
+            uncertainty = self.act_uncertainty(self.uncertainty_linear(density_embedding))
+            outputs[FieldHeadNames.UNCERTAINTY] = uncertainty  # 使用枚举作为键名
         return outputs
+
+
+if __name__ == "__main__":
+    field = ActiveNeRFField()
+    print(field)
+"""
+ActiveNeRFField(
+  (position_encoding): Identity()
+  (direction_encoding): Identity()
+  (uncertainty_linear): Linear(in_features=256, out_features=1, bias=True)
+  (act_uncertainty): Softplus(beta=1, threshold=20)
+  (mlp_base): MLP(
+    (activation): ReLU()
+    (out_activation): ReLU()
+    (layers): ModuleList(
+      (0): Linear(in_features=3, out_features=256, bias=True)
+      (1-3): 3 x Linear(in_features=256, out_features=256, bias=True)
+      (4): Linear(in_features=259, out_features=256, bias=True)
+      (5-7): 3 x Linear(in_features=256, out_features=256, bias=True)
+    )
+  )
+  (field_output_density): DensityFieldHead(
+    (activation): Softplus(beta=1, threshold=20)
+    (net): Linear(in_features=256, out_features=1, bias=True)
+  )
+  (mlp_head): MLP(
+    (activation): ReLU()
+    (out_activation): ReLU()
+    (layers): ModuleList(
+      (0): Linear(in_features=259, out_features=128, bias=True)
+      (1): Linear(in_features=128, out_features=128, bias=True)
+    )
+  )
+  (field_heads): ModuleList(
+    (0): RGBFieldHead(
+      (activation): Sigmoid()
+      (net): Linear(in_features=128, out_features=3, bias=True)
+    )
+  )
+)
+
+"""

@@ -14,7 +14,6 @@
 
 """Classic NeRF field"""
 
-
 from typing import Dict, Optional, Tuple, Type
 
 import torch
@@ -49,17 +48,17 @@ class NeRFField(Field):
     """
 
     def __init__(
-        self,
-        position_encoding: Encoding = Identity(in_dim=3),
-        direction_encoding: Encoding = Identity(in_dim=3),
-        base_mlp_num_layers: int = 8,
-        base_mlp_layer_width: int = 256,
-        head_mlp_num_layers: int = 2,
-        head_mlp_layer_width: int = 128,
-        skip_connections: Tuple[int] = (4,),
-        field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
-        use_integrated_encoding: bool = False,
-        spatial_distortion: Optional[SpatialDistortion] = None,
+            self,
+            position_encoding: Encoding = Identity(in_dim=3),
+            direction_encoding: Encoding = Identity(in_dim=3),
+            base_mlp_num_layers: int = 8,
+            base_mlp_layer_width: int = 256,
+            head_mlp_num_layers: int = 2,
+            head_mlp_layer_width: int = 128,
+            skip_connections: Tuple[int] = (4,),
+            field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
+            use_integrated_encoding: bool = False,
+            spatial_distortion: Optional[SpatialDistortion] = None,
     ) -> None:
         super().__init__()
         self.position_encoding = position_encoding
@@ -82,7 +81,9 @@ class NeRFField(Field):
                 layer_width=head_mlp_layer_width,
                 out_activation=nn.ReLU(),
             )
-        self.field_heads = nn.ModuleList([field_head() for field_head in field_heads] if field_heads else [])  # type: ignore
+        self.field_heads = nn.ModuleList(
+            [field_head() for field_head in field_heads] if field_heads else []
+        )  # type: ignore
         for field_head in self.field_heads:
             field_head.set_in_dim(self.mlp_head.get_out_dim())  # type: ignore
 
@@ -102,7 +103,7 @@ class NeRFField(Field):
         return density, base_mlp_out
 
     def get_outputs(
-        self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
+            self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
     ) -> Dict[FieldHeadNames, Tensor]:
         outputs = {}
         for field_head in self.field_heads:
@@ -110,3 +111,42 @@ class NeRFField(Field):
             mlp_out = self.mlp_head(torch.cat([encoded_dir, density_embedding], dim=-1))  # type: ignore
             outputs[field_head.field_head_name] = field_head(mlp_out)
         return outputs
+
+
+if __name__ == "__main__":
+    field = NeRFField()
+    print(field)
+"""
+NeRFField(
+  (position_encoding): Identity()
+  (direction_encoding): Identity()
+  (mlp_base): MLP(
+    (activation): ReLU()
+    (out_activation): ReLU()
+    (layers): ModuleList(
+      (0): Linear(in_features=3, out_features=256, bias=True)
+      (1-3): 3 x Linear(in_features=256, out_features=256, bias=True)
+      (4): Linear(in_features=259, out_features=256, bias=True)
+      (5-7): 3 x Linear(in_features=256, out_features=256, bias=True)
+    )
+  )
+  (field_output_density): DensityFieldHead(
+    (activation): Softplus(beta=1, threshold=20)
+    (net): Linear(in_features=256, out_features=1, bias=True)
+  )
+  (mlp_head): MLP(
+    (activation): ReLU()
+    (out_activation): ReLU()
+    (layers): ModuleList(
+      (0): Linear(in_features=259, out_features=128, bias=True)
+      (1): Linear(in_features=128, out_features=128, bias=True)
+    )
+  )
+  (field_heads): ModuleList(
+    (0): RGBFieldHead(
+      (activation): Sigmoid()
+      (net): Linear(in_features=128, out_features=3, bias=True)
+    )
+  )
+)
+"""
