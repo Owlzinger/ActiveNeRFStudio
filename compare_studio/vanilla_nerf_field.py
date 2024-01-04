@@ -48,17 +48,17 @@ class NeRFField(Field):
     """
 
     def __init__(
-            self,
-            position_encoding: Encoding = Identity(in_dim=3),
-            direction_encoding: Encoding = Identity(in_dim=3),
-            base_mlp_num_layers: int = 8,
-            base_mlp_layer_width: int = 256,
-            head_mlp_num_layers: int = 2,
-            head_mlp_layer_width: int = 128,
-            skip_connections: Tuple[int] = (4,),
-            field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
-            use_integrated_encoding: bool = False,
-            spatial_distortion: Optional[SpatialDistortion] = None,
+        self,
+        position_encoding: Encoding = Identity(in_dim=3),
+        direction_encoding: Encoding = Identity(in_dim=3),
+        base_mlp_num_layers: int = 8,
+        base_mlp_layer_width: int = 256,
+        head_mlp_num_layers: int = 2,
+        head_mlp_layer_width: int = 128,
+        skip_connections: Tuple[int] = (4,),
+        field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
+        use_integrated_encoding: bool = False,
+        spatial_distortion: Optional[SpatialDistortion] = None,
     ) -> None:
         super().__init__()
         self.position_encoding = position_encoding
@@ -103,7 +103,7 @@ class NeRFField(Field):
         return density, base_mlp_out
 
     def get_outputs(
-            self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
+        self, ray_samples: RaySamples, density_embedding: Optional[Tensor] = None
     ) -> Dict[FieldHeadNames, Tensor]:
         outputs = {}
         for field_head in self.field_heads:

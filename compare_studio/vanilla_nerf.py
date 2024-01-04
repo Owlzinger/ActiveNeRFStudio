@@ -74,9 +74,9 @@ class NeRFModel(Model):
     config: VanillaModelConfig
 
     def __init__(
-            self,
-            config: VanillaModelConfig,
-            **kwargs,
+        self,
+        config: VanillaModelConfig,
+        **kwargs,
     ) -> None:
         self.field_coarse = None
         self.field_fine = None
@@ -220,7 +220,7 @@ class NeRFModel(Model):
         return loss_dict
 
     def get_image_metrics_and_images(
-            self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
+        self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
         image = batch["image"].to(outputs["rgb_coarse"].device)
         image = self.renderer_rgb.blend_background(image)
