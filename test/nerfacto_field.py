@@ -182,17 +182,3 @@ class NerfactoField(Field):
             out_activation=nn.Sigmoid(),
             implementation=implementation,
         )
-
-
-if __name__ == "__main__":
-    """Test the Nerfacto field"""
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    aabb_scale = 1.0
-    aabb = torch.tensor(
-        [[-aabb_scale, -aabb_scale, -aabb_scale], [aabb_scale, aabb_scale, aabb_scale]],
-        dtype=torch.float32,
-        device=device,
-    )
-    field = NerfactoField(aabb, num_images=1).to(device)
-    print(field)
