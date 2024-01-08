@@ -52,6 +52,7 @@ class ActiveNeRFField(Field):
         field_heads: Optional[Tuple[Type[FieldHead]]] = (RGBFieldHead,),
         use_integrated_encoding: bool = False,
         spatial_distortion: Optional[SpatialDistortion] = None,
+        # 添加 beta_min 和 use_viewdirs
         use_viewdirs: bool = True,
         beta_min: float = 0.0,
     ) -> None:
